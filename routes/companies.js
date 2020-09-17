@@ -3,10 +3,19 @@ const ExpressError = require('../expressError');
 const router = new express.Router();
 
 const db = require('../db');
+const makeSlug = require('../slugify');
 
 router.get('/', async (req, res, next) => {
     try {
-        const results = await db.query('SELECT * FROM companies');
+        const results = await db.query(
+            `SELECT name, description, ARRAY_AGG(industry) as industries
+             FROM companies
+             JOIN companies_industries AS ci 
+             ON companies.code=ci.comp_code 
+             JOIN industries AS i 
+             ON ci.i_code=i.code
+             GROUP BY name, description`
+        );
 
         if (results.rows.length === 0) {
             throw new ExpressError('Database is empty or there was an error', 404);
@@ -39,7 +48,9 @@ router.get('/:code', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
     try {
-        const { code, name, description } = req.body;
+        const { name, description } = req.body;
+        const code = makeSlug(name);
+
         const result = await db.query(
             `INSERT INTO companies (code, name, description) 
             VALUES ($1, $2, $3) 
@@ -54,7 +65,8 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:code', async (req, res, next) => {
     try {
-        const { code, name, description } = req.body;
+        const { name, description } = req.body;
+        const code = makeSlug(name);
 
         const result = await db.query(
             `
